@@ -3,11 +3,11 @@ var explosionQueue = new ExplosionQueue();
 var ravenPosition = new Point(0, view.viewSize.height * 0.5);
 var ravenPivot = ravenPosition;
 var raven;
-project.activeLayer.importSVG('ravenShooter.svg', function(_raven) {
+project.activeLayer.importSVG('ravenShooter.svg', function (_raven) {
     raven = _raven;
     raven.position = ravenPosition;
 });
-project.activeLayer.importSVG('monster.svg', function(mon1) {
+project.activeLayer.importSVG('monster.svg', function (mon1) {
     mon1.scale(0.3);
     mon1.index = 0;
     mon1.position = new Point(view.viewSize.width + 100, 50);
@@ -39,42 +39,87 @@ project.activeLayer.importSVG('monster.svg', function(mon1) {
     }
 });
 var lastRavenAngle = 0;
+
 function onMouseMove(e) {
-    var direction = e.point - ravenPosition;
-    raven.rotate(-lastRavenAngle, ravenPivot);
-    raven.rotate(direction.angle, ravenPivot);
-    lastRavenAngle = direction.angle;
+    if (!pauseGame) {
+        var direction = e.point - ravenPosition;
+        raven.rotate(-lastRavenAngle, ravenPivot);
+        raven.rotate(direction.angle, ravenPivot);
+        lastRavenAngle = direction.angle;
+    }
 }
+
 function onMouseDown(e) {
-    fireQueue.queue(new Fire(e.point));
+    if (!pauseGame) {
+        fireQueue.queue(new Fire(e.point));
+    }
 }
+
 function inRadian(angle) {
     return (angle * Math.PI) / 180;
 }
+
 function getGunPoint() {
     return new Point(
         ravenPosition.x + 150 * Math.cos(inRadian(lastRavenAngle)),
         ravenPosition.y + 150 * Math.sin(inRadian(lastRavenAngle))
     );
 }
+var gameOverText;
 
 function onFrame(event) {
-    for (var i = 0; i < monsters.length; i++) {
-        if (!monsters[i].pauseAnim) {
-            monsters[i].position.x -= monsters[i].speed;
-            monsters[i].position.y +=
-                3 * Math.sin(0.04 * monsters[i].position.x + i * 20);
-            if (monsters[i].position.x < -100) {
-                monsters[i].position = new Point(
-                    view.viewSize.width + 100,
-                    monsters[i].inity
-                );
-                monsters[i].speed = Math.random() * 2 + 3;
+    if (!pauseGame) {
+        for (var i = 0; i < monsters.length; i++) {
+            if (!monsters[i].pauseAnim) {
+                monsters[i].position.x -= monsters[i].speed;
+                monsters[i].position.y +=
+                    3 * Math.sin(0.04 * monsters[i].position.x + i * 20);
+                if (monsters[i].position.x < -100) {
+                    stat.life -= 10;
+                    if (stat.life <= 0) gameOver = true;
+                    monsters[i].position = new Point(
+                        view.viewSize.width + 100,
+                        monsters[i].inity
+                    );
+                    monsters[i].speed = Math.random() * 2 + 3;
+                }
             }
         }
+        explosionQueue.draw();
+        fireQueue.draw();
+        updateStat();
     }
-    explosionQueue.draw();
-    fireQueue.draw();
+    if (gameOver) {
+        pauseGame = true;
+        disablePauseButton();
+        if (!gameOverText) gameOverText = new PointText({
+            content: 'Game Over',
+            point: new Point(0, 0),
+            fillColor: 'white',
+            fontSize: 100,
+            fontFamily: 'Franklin Gothic Heavy'
+        });
+        else gameOverText.visible = true;
+        gameOverText.point = new Point(view.viewSize.width / 2 - gameOverText.bounds.width / 2, view.viewSize.height / 2)
+    }
+    if (restartGame) {
+        gameOver = false;
+        pauseGame = false;
+        enablePauseButton();
+        gameOverText.visible = false;
+        stat.life = 100;
+        stat.score = 0;
+        for (var i = 0; i < monsters.length; i++) {
+            monsters[i].position = new Point(
+                view.viewSize.width + 100,
+                monsters[i].inity
+            );
+            monsters[i].speed = Math.random() * 2 + 3;
+        }
+        explosionQueue = new ExplosionQueue();
+        fireQueue = new FireQueue();
+        restartGame = false;
+    }
 }
 
 function getBullet() {
@@ -88,15 +133,15 @@ var fireQueue = new FireQueue();
 
 function FireQueue() {
     var fires = new Array();
-    this.queue = function(fire) {
+    this.queue = function (fire) {
         fires.push(fire);
     };
-    this.draw = function() {
+    this.draw = function () {
         for (var i = 0; i < fires.length; i++) {
             fires[i].draw();
             if (fires[i].outofbound) fires[i].shouldDie = true;
         }
-        fires = fires.filter(function(x) {
+        fires = fires.filter(function (x) {
             if (x.shouldDie) x.clear();
             return !x.shouldDie;
         });
@@ -120,7 +165,7 @@ function Fire(target) {
     initVel = (initVel * 40) / initVel.length;
     var prevAngle = 0;
     var vel = new Point(0, 0);
-    this.draw = function() {
+    this.draw = function () {
         var t = this.progress / 60;
         bullet.position += vel;
         if (this.progress === 0) {
@@ -141,6 +186,9 @@ function Fire(target) {
                 console.log('Hit something');
                 this.hit = true;
                 var mons = monsters[i];
+                stat.score += (mons.position.x) * 100 / view.viewSize.width;
+                stat.score = stat.score - (stat.score % 0.01);
+                if (stat.life < 100) stat.life++;
                 if (!mons.pauseAnim) {
                     mons.pauseAnim = true;
                     explosionQueue.queue(
@@ -153,7 +201,7 @@ function Fire(target) {
                             new Point(-mons.speed, 0),
                             80,
                             mons,
-                            function() {
+                            function () {
                                 mons.position = new Point(
                                     view.viewSize.width + 100,
                                     mons.inity
@@ -177,21 +225,21 @@ function Fire(target) {
         }
         this.progress++;
     };
-    this.clear = function() {
+    this.clear = function () {
         bullet.remove();
     };
 }
 
 function ExplosionQueue() {
     var explosions = new Array();
-    this.queue = function(expl) {
+    this.queue = function (expl) {
         explosions.push(expl);
     };
-    this.draw = function() {
+    this.draw = function () {
         for (var i = 0; i < explosions.length; i++) {
             explosions[i].draw();
         }
-        explosions = explosions.filter(function(_expl) {
+        explosions = explosions.filter(function (_expl) {
             return !_expl.complete;
         });
     };
@@ -222,7 +270,7 @@ function Explosion(
             (2 * Math.PI) / Math.acos(1 - 1 / (2 * layerCount * layerCount));
     }
     var pointRadius = this.initialRadius / (2 * layerCount + 1);
-    this.getVelocityVector = function(angle, angleRand, velRand) {
+    this.getVelocityVector = function (angle, angleRand, velRand) {
         var randAngle = angle * (1 - angleRand / 2 + angleRand * Math.random());
         var randVelocity =
             maxVelocity * (1 - velRand / 2 + velRand * Math.random());
@@ -241,9 +289,7 @@ function Explosion(
             velocities.push(this.getVelocityVector(0, 1, 0.2));
         } else {
             for (
-                var j = 1;
-                j < (2 * Math.PI) / Math.acos(1 - 1 / (2 * i * i)) + 1;
-                j++
+                var j = 1; j < (2 * Math.PI) / Math.acos(1 - 1 / (2 * i * i)) + 1; j++
             ) {
                 var angle = Math.acos(1 - 1 / (2 * i * i)) * (j - 1) + i * 13;
                 var posX = x + 2 * pointRadius * i * Math.cos(angle);
@@ -260,7 +306,7 @@ function Explosion(
             }
         }
     }
-    this.draw = function() {
+    this.draw = function () {
         if (this.progress < duration) {
             t = this.progress / 60;
             for (var i = 0; i < points.length; i++) {
