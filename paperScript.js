@@ -68,6 +68,24 @@ function getGunPoint() {
 var gameOverText;
 
 function onFrame(event) {
+    if (restartGame) {
+        gameOver = false;
+        pauseGame = false;
+        enablePauseButton();
+        if (gameOverText) gameOverText.visible = false;
+        stat.life = 100;
+        stat.score = 0;
+        for (var i = 0; i < monsters.length; i++) {
+            monsters[i].position = new Point(
+                view.viewSize.width + 100,
+                monsters[i].inity
+            );
+            monsters[i].speed = Math.random() * 2 + 3;
+        }
+        explosionQueue = new ExplosionQueue();
+        fireQueue = new FireQueue();
+        restartGame = false;
+    }
     if (!pauseGame) {
         for (var i = 0; i < monsters.length; i++) {
             if (!monsters[i].pauseAnim) {
@@ -101,24 +119,6 @@ function onFrame(event) {
         });
         else gameOverText.visible = true;
         gameOverText.point = new Point(view.viewSize.width / 2 - gameOverText.bounds.width / 2, view.viewSize.height / 2)
-    }
-    if (restartGame) {
-        gameOver = false;
-        pauseGame = false;
-        enablePauseButton();
-        gameOverText.visible = false;
-        stat.life = 100;
-        stat.score = 0;
-        for (var i = 0; i < monsters.length; i++) {
-            monsters[i].position = new Point(
-                view.viewSize.width + 100,
-                monsters[i].inity
-            );
-            monsters[i].speed = Math.random() * 2 + 3;
-        }
-        explosionQueue = new ExplosionQueue();
-        fireQueue = new FireQueue();
-        restartGame = false;
     }
 }
 
